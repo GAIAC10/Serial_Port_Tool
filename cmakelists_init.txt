@@ -1,0 +1,167 @@
+# https://www.cnblogs.com/guoshuai-ouc/p/cmake_variable.html
+# https://blog.csdn.net/qq_59470001/article/details/130799429
+
+cmake_minimum_required(VERSION 3.8)
+
+project(pcl_out_tools)
+
+# 设置vcpkg根目录
+set(VCPKG_DIR "D:/src/vcpkg")
+set(VCPKG_TARGET_TRIPLET "x64-windows"
+      CACHE STRING "")
+set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      CACHE STRING "")
+
+# 指定Qt _.h文件目录
+# include_directories("D:/Soft/Qt5.14.1/data/5.14.2/msvc2017_64/include")
+# 指定Qt模块CMake路径
+# set(CAMKE_PREFIX_PATH "D:/Soft/Qt5.14.1/data/5.14.2/msvc2017_64/lib/cmake")
+
+# 设置build生成路径
+# CMAKE_CURRENT_SOURCE_DIR = CMakeLists.txt所在的路径
+# set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/build)
+
+# 设置编译器标准
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# 添加 CMAKE_CURRENT_BINARY_DIR 和 CMAKE_CURRENT_SOURCE_DIR 到当前处理的 CMakeLists.txt
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+# 转化为moc文件的权限给cmake
+set(CMAKE_AUTOMOC ON)
+# 自动把ui转化为C++代码
+# uic _.ui->ui_.h
+set(CMAKE_AUTOUIC ON)
+# 转化为qcc生成器的权限给cmake
+set(CMAKE_AUTORCC ON)
+
+#设置QT5默认路径
+IF (NOT Qt5_DIR)
+    IF (MSVC)
+        set(Qt5_DIR D:/Soft/Qt5.14.1/data/5.14.2/msvc2017_64)
+    ELSE ()
+        set(Qt5_DIR /usr/local/Qt/5.15.2/gcc_64/lib/cmake/Qt5)
+    ENDIF ()
+ENDIF ()
+
+# 设置编译器警告等级|开启特定的编译选项|设置编译器优化等级
+if(MSVC)
+	add_compile_options(/Zc:__cplusplus)
+endif()
+
+# 查找指定模块
+find_package(Qt5 COMPONENTS Widgets REQUIRED)
+find_package(Qt5 COMPONENTS SerialPort REQUIRED)
+find_package(Qt5 COMPONENTS Core REQUIRED)
+find_package(Qt5 COMPONENTS Gui REQUIRED)
+
+# 添加所有源文件
+SET(PCL_OUT_SRC
+        main.cpp
+        widget.cpp
+        widget.h
+        )
+
+# 添加所有QT头文件
+SET(PCL_OUT_HEADERS
+        widget.h
+        )
+
+# 添加所有.ui文件
+SET(PCL_OUT_UI
+        widget.ui
+        )
+
+# 添加所有资源文件
+SET(PCL_OUT_RESOURCES
+        )
+
+# 生成ui文件
+FILE(GLOB UI_FILES ${CMAKE_CURRENT_SOURCE_DIR}/*.ui)
+QT5_WRAP_UI(WRAP_FILES ${UI_FILES})
+
+# 生成可执行文件
+add_executable(${PROJECT_NAME}
+    ${PCL_OUT_SRC}
+    ${PCL_OUT_HEADERS}
+    ${PCL_OUT_UI}
+    ${PCL_OUT_RESOURCES}
+    ${WRAP_FILES}
+)
+
+# 添加需要链接的共享库
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    Qt5::Widgets
+    Qt5::SerialPort
+    Qt5::Core
+    Qt5::Gui
+)
+
+# 移除控制台,只需要GUI
+if (WIN32)
+    if (MSVC)
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+                WIN32_EXECUTABLE YES
+                LINK_FLAGS "${CMAKE_LINK_FLAGS} /SUBSYSTEM:Windows /ENTRY:mainCRTStartup"
+                )
+    elseif (CMAKE_COMPILER_IS_GNUCXX)
+        # SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mwindows") # Not tested
+    else ()
+        message(SEND_ERROR "You are using an unsupported Windows compiler! (Not MSVC or GCC)")
+    endif (MSVC)
+elseif (APPLE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+            MACOSX_BUNDLE YES
+            )
+elseif (UNIX)
+    # Nothing special required
+else ()
+    message(SEND_ERROR "You are on an unsupported platform! (Not Win32, Mac OS X or Unix)")
+endif (WIN32)
+
+# Installation
+SET(install_targets ${install_targets} ${PROJECT_NAME})
+# 获取QT根目录
+string(REGEX REPLACE "/5.14.2/msvc2017_64" "" Qt5_ROOT_DIR ${Qt5_DIR})
+# 安装可执行文件
+INSTALL(TARGETS ${install_targets}
+        # 可执行二进制文件
+        RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
+        )
+
+# 获取依赖的dll
+IF (MSVC)
+    SET(DUMP_DLL_RELEASE
+            # ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/iconv-2.dll
+            # ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/intl-8.dll
+            )
+ELSEIF ()
+    #linux直接通过apt安装
+    #sudo apt-cache search intl
+    #sudo apt-get -y install
+ENDIF (MSVC)
+
+INSTALL(FILES ${DUMP_DLL_RELEASE} DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+# 安装QT dll
+IF (MSVC)
+    SET(QT_DEPENDENTS_DLL
+            ${Qt5_ROOT_DIR}/bin/Qt5Core.dll
+            ${Qt5_ROOT_DIR}/bin/Qt5Gui.dll
+            ${Qt5_ROOT_DIR}/bin/Qt5Widgets.dll
+            ${Qt5_ROOT_DIR}/bin/Qt5SerialPort.dll
+            )
+    INSTALL(FILES ${QT_DEPENDENTS_DLL} DESTINATION ${CMAKE_INSTALL_PREFIX})
+ENDIF (MSVC)
+
+# 打印信息
+MESSAGE(STATUS "")
+MESSAGE(STATUS "")
+MESSAGE(STATUS "${PROJECT_NAME} configuration summary:")
+MESSAGE(STATUS "")
+
+MESSAGE(STATUS "  Qt5 root ...................... : ${Qt5_ROOT_DIR}")
+MESSAGE(STATUS "  Build type ...................... : ${CMAKE_BUILD_TYPE}")
+MESSAGE(STATUS "  Install prefix .................. : ${CMAKE_INSTALL_PREFIX}")
+MESSAGE(STATUS "  C compiler ...................... : ${CMAKE_C_COMPILER}")
+MESSAGE(STATUS "  CXX compiler ...................... : ${CMAKE_CXX_COMPILER}")
